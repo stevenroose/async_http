@@ -1,0 +1,9 @@
+name: async_http
+version: 0.0.1
+description: An asynchronous HTTP client using dart:async API.
+author: Steven Roose <stevenroose@gmail.com>
+homepage: https://pub.dartlang.org/packages/async_http
+dependencies:
+  http: ">=0.11.1+1 <1.0.0"
+
+dev_dependencies:
