@@ -10,14 +10,14 @@ import "dart:io" deferred as io;
 
 
 
-class AsyncHttpConnection implements StreamSink<List<int>> {
+class AsyncHttpConnection extends Stream implements StreamSink {
 
-  final Uri address;
+  final Uri endpoint;
 
   Future<Function> _requester;
   StreamController _responses;
 
-  AsyncHttpConnection(Uri this.address) {
+  AsyncHttpConnection(String address) : endpoint = Uri.parse(address) {
     _responses = new StreamController();
 
     // some fishy stuff to make it work in both io and html
@@ -27,8 +27,8 @@ class AsyncHttpConnection implements StreamSink<List<int>> {
       try {
         client = new io.HttpClient();
       } catch (e) {return;}
-      requesterCompleter.complete((List<int> data) {
-        client.postUrl(address).then((request) {
+      requesterCompleter.complete((data) {
+        client.postUrl(endpoint).then((request) {
           request.add(data);
           request.close().then((response) {
             _responses.addStream(response);
@@ -40,9 +40,9 @@ class AsyncHttpConnection implements StreamSink<List<int>> {
     }, onError: (e){});
     html.loadLibrary().then((_) {
       browser_client.loadLibrary().then((_) {
-        requesterCompleter.complete((List<int> data) {
+        requesterCompleter.complete((data) {
           var client = new browser_client.BrowserClient();
-          client.post(address, body: data).then((response) {
+          client.post(endpoint, body: data).then((response) {
             _responses.add(response.bodyBytes);
           });
         });
@@ -51,36 +51,40 @@ class AsyncHttpConnection implements StreamSink<List<int>> {
     _requester = requesterCompleter.future;
   }
 
-  /**
-   * A [StreamSink] to add requests to.
-   */
-  StreamSink<List<int>> get onRequest => this;
 
-  /**
-   * A [Stream] with responses.
-   */
-  Stream<List<int>> get onResponse => _responses.stream;
+  /* Stream methods */
 
-  // StreamSink bits
+  StreamSubscription listen(void onData(event),
+                            { Function onError,
+                              void onDone(),
+                              bool cancelOnError}) =>
+      _responses.stream.listen(onData, onError: onError, onDone: onDone, cancelOnError: cancelOnError);
+
+
+  /* StreamSink methods */
+
   Completer completer;
 
   @override
-  void add(List<int> data) {
+  void add(data) {
     _requester.then((Function requester) => requester(data));
   }
 
   @override
   void addError(errorEvent, [StackTrace stackTrace]) {
-    completer.complete(errorEvent);
+    completer.completeError(errorEvent);
   }
 
   @override
-  Future addStream(Stream<List<int>> stream) {
-    return stream.listen((List<int> data) => add(data)).asFuture();
+  Future addStream(Stream stream) {
+    return stream.listen((data) => add(data)).asFuture();
   }
 
   @override
-  Future close() => completer.future;
+  Future close() {
+    completer.complete();
+    return completer.future;
+  }
 
   @override
   Future get done  => completer.future;
